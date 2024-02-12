@@ -1,7 +1,9 @@
-server:
-  port: 8082
-
 spring:
   output:
     ansi:
       enabled: always
+
+menu:
+  base-path:
+  menu-slack-url:
+  error-slack-url:

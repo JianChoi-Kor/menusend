@@ -2,11 +2,11 @@ package com.project.menusend.process;
 
 import com.google.cloud.vision.v1.*;
 import com.google.protobuf.ByteString;
-import com.project.menusend.util.MenuProperties;
+import com.project.menusend.util.WebhookService;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import javax.imageio.ImageIO;
@@ -21,83 +21,92 @@ import java.util.List;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-@EnableConfigurationProperties(MenuProperties.class)
 public class Menusend {
 
-    private final MenuProperties menuProperties;
+    @Value("${menu.base-path}")
+    private String basePath;
+
+    private final WebhookService webhookService;
 
     @PostConstruct
     public void send() throws Exception {
-        // dailyMenuImage 있는지 확인
-        if (checkDailyMenuImage()) {
-            // dailyMenuImage 있는 경우 slack 발송
-            String fileFullPath = findFilePath();
-            // 토요일 일요일의 경우 fileFullPath null 반환
-            if (fileFullPath != null) {
+        int dayNumber = LocalDate.now().getDayOfWeek().getValue();
+        // 토요일 일요일의 경우 처리
+        if (dayNumber == 6 || dayNumber == 7) {
+            // 폴더 내 모든 이미지 삭제 처리
+            deleteAllFiles();
+        }
+        // 평일의 경우
+        else {
+            // dailyMenuImage 있는지 확인
+            if (checkDailyMenuImage()) {
+                // dailyMenuImage 있는 경우 slack 발송
+                String fileFullPath = findFilePath(dayNumber);
                 // 텍스트 추출
                 String menuStr = detectText(fileFullPath);
                 // slack 전송
+                webhookService.sendMenuMessage(menuStr);
 
-            }
+            } else {
+                // dailyMenuImage 없는 경우 mainImage 있는지 확인
+                if (checkMainImage()) {
+                    // mainImage 있는 경우 이미지 dailyMenuImage 생성
+                    cutDailyMenuImage();
 
-        } else {
-            // dailyMenuImage 없는 경우 mainImage 있는지 확인
-            if (checkMainImage()) {
-                // mainImage 있는 경우 이미지 dailyMenuImage 생성
-                cutDailyMenuImage();
-
-                // dailyMenuImage 생성 후 slack 발송
-                String fileFullPath = findFilePath();
-                // 토요일 일요일의 경우 fileFullPath null 반환
-                if (fileFullPath != null) {
+                    // dailyMenuImage 생성 후 slack 발송
+                    String fileFullPath = findFilePath(dayNumber);
                     // 텍스트 추출
                     String menuStr = detectText(fileFullPath);
                     // slack 전송
+                    webhookService.sendMenuMessage(menuStr);
+
+                } else {
+                    // mainImage 없는 경우 담당자에게 slack 발송
 
                 }
-
-            } else {
-                // mainImage 없는 경우 담당자에게 slack 발송
-
             }
         }
     }
 
     private boolean checkDailyMenuImage() {
-        File file = new File(menuProperties.getBasePath() + "menu_1.jpg");
+        File file = new File(basePath + "menu_1.jpg");
         return file.exists();
     }
 
     private boolean checkMainImage() {
-        File file = new File(menuProperties.getBasePath() + "menu.jpg");
+        File file = new File(basePath + "menu.jpg");
         return file.exists();
     }
 
     private void cutDailyMenuImage() throws Exception {
-        final int pointX = 135;
-        final int pointY = 345;
-        final int height = 455;
-        final int width = 260;
-        final int distance = 12;
-
-        File mainImage = new File(menuProperties.getBasePath() + "menu.jpg");
+        File mainImage = new File(basePath + "menu.jpg");
         BufferedImage bufferedImage = ImageIO.read(mainImage);
 
+        int width = bufferedImage.getWidth();
+        int eachWidth = width/5;
+        int height = bufferedImage.getHeight();
+
         for (int i = 0; i < 5; i++) {
-            int startX = pointX + (width + distance) * i;
-            BufferedImage subimage = bufferedImage.getSubimage(startX, pointY, width, height);
+            int startX = eachWidth * i;
+            BufferedImage subImage = bufferedImage.getSubimage(startX, 0, eachWidth, height);
 
             int imageNm = i + 1;
-            ImageIO.write(subimage, "jpg", new File(menuProperties.getBasePath() + "menu_" + imageNm + ".jpg"));
+            ImageIO.write(subImage, "jpg", new File(basePath + "menu_" + imageNm + ".jpg"));
         }
     }
 
-    private String findFilePath() {
-        int dayNumber = LocalDate.now().getDayOfWeek().getValue();
-        if (dayNumber == 6 || dayNumber == 7) {
-            return null;
+    private String findFilePath(int dayNumber) {
+        return basePath + "menu_" + dayNumber + ".jpg";
+    }
+
+    private void deleteAllFiles() {
+        File baseDirectory = new File(basePath);
+        File[] files = baseDirectory.listFiles();
+        if (files != null) {
+            for (File file : files) {
+                file.delete();
+            }
         }
-        return menuProperties.getBasePath() + "menu_" + dayNumber + ".jpg";
     }
 
     // Detects text in the specified image.
@@ -123,6 +132,7 @@ public class Menusend {
 
             for (AnnotateImageResponse res : responses) {
                 if (res.hasError()) {
+                    // error 처리
                     System.out.format("Error: %s%n", res.getError().getMessage());
                 }
 
