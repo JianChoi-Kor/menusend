@@ -62,7 +62,7 @@ public class Menusend {
 
                 } else {
                     // mainImage 없는 경우 담당자에게 slack 발송
-
+                    webhookService.sendErrorMessage("mainImage not found!");
                 }
             }
         }
@@ -133,7 +133,7 @@ public class Menusend {
             for (AnnotateImageResponse res : responses) {
                 if (res.hasError()) {
                     // error 처리
-                    System.out.format("Error: %s%n", res.getError().getMessage());
+                    log.error("Error: " + res.getError().getMessage());
                 }
 
                 EntityAnnotation annotation = res.getTextAnnotationsList().get(0);

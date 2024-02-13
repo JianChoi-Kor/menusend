@@ -3,11 +3,13 @@ package com.project.menusend.util;
 import com.slack.api.Slack;
 import com.slack.api.webhook.WebhookResponse;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class WebhookService {
@@ -18,27 +20,25 @@ public class WebhookService {
     @Value("${menu.error-slack-url}")
     private String errorSlackUrl;
 
-    public boolean sendMenuMessage(String content) {
+    public void sendMenuMessage(String content) {
         Slack slack = Slack.getInstance();
         String payload = "{\"text\": \"" + content + "\"}";
         try {
             WebhookResponse response = slack.send(menuSlackUrl, payload);
+            log.info("webhookResponse: " + response);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-
-        return true;
     }
 
-    public boolean sendErrorMessage(String content) {
+    public void sendErrorMessage(String content) {
         Slack slack = Slack.getInstance();
         String payload = "{\"text\": \"" + content + "\"}";
         try {
             WebhookResponse response = slack.send(errorSlackUrl, payload);
+            log.info("webhookResponse: " + response);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-
-        return true;
     }
 }

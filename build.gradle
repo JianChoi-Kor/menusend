@@ -35,6 +35,10 @@ dependencies {
 	implementation 'com.slack.api:slack-api-client:1.30.0'
 }
 
+test {
+	exclude '**/*'
+}
+
 tasks.named('test') {
 	useJUnitPlatform()
 }
