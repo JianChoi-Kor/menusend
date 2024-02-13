@@ -7,3 +7,7 @@ menu:
   base-path:
   menu-slack-url:
   error-slack-url:
+
+logging:
+  level:
+    root: INFO
